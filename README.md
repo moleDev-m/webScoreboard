@@ -1,1 +1,1 @@
-Live Demo: (https://moleDev-m.github.io/webScoreboard)
+Live Demo: (https://moleDev-m.github.io/webScoreboard/)
