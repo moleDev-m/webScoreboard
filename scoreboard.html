@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Scoring System</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f4f4f9;
+    text-align: center;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { margin-bottom: 10px; }
+  .team {
+    background: white;
+    padding: 10px;
+    margin: 10px auto;
+    border-radius: 8px;
+    max-width: 400px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .score {
+    font-size: 2em;
+    margin: 10px 0;
+  }
+  .buttons {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  button {
+    font-size: 1em;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    background: #007bff;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #0056b3;
+  }
+  input {
+    padding: 8px;
+    font-size: 1em;
+  }
+</style>
+</head>
+<body>
+
+<h1>Scoreboard</h1>
+
+<div>
+  <input id="teamName" placeholder="Enter team name">
+  <button onclick="addTeam()">Add Team</button>
+</div>
+
+<div id="teams"></div>
+
+<h3>Add Category Buttons</h3>
+<input id="categoryName" placeholder="Category name">
+<input id="categoryValue" type="number" placeholder="Points" style="width:80px">
+<button onclick="addCategory()">Add Category</button>
+
+<div id="categories" style="margin-top: 10px;"></div>
+
+<script>
+let teams = [];
+let categories = [];
+
+function renderTeams() {
+  const container = document.getElementById('teams');
+  container.innerHTML = '';
+  teams.forEach((team, index) => {
+    container.innerHTML += `
+      <div class="team">
+        <h2>${team.name}</h2>
+        <div class="score">${team.score}</div>
+        <div class="buttons">
+          ${categories.map(cat => 
+            `<button onclick="addScore(${index}, ${cat.value})">${cat.name} +${cat.value}</button>`
+          ).join('')}
+          <button style="background:#dc3545" onclick="addScore(${index}, -10)">-10</button>
+        </div>
+      </div>
+    `;
+  });
+}
+
+function addTeam() {
+  const name = document.getElementById('teamName').value.trim();
+  if (!name) return alert("Enter a team name!");
+  teams.push({ name, score: 0 });
+  document.getElementById('teamName').value = '';
+  renderTeams();
+}
+
+function addCategory() {
+  const name = document.getElementById('categoryName').value.trim();
+  const value = parseInt(document.getElementById('categoryValue').value);
+  if (!name || isNaN(value)) return alert("Enter valid category name and points!");
+  categories.push({ name, value });
+  renderCategories();
+  renderTeams();
+  document.getElementById('categoryName').value = '';
+  document.getElementById('categoryValue').value = '';
+}
+
+function renderCategories() {
+  const container = document.getElementById('categories');
+  container.innerHTML = categories.map(cat => 
+    `<div>${cat.name} (+${cat.value})</div>`
+  ).join('');
+}
+
+function addScore(teamIndex, amount) {
+  teams[teamIndex].score += amount;
+  renderTeams();
+}
+</script>
+
+</body>
+</html>
