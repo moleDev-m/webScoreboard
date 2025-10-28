@@ -4,120 +4,352 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Team Scoring System</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #f4f4f9;
-    text-align: center;
-    margin: 0;
-    padding: 20px;
-  }
-  h1 { margin-bottom: 10px; }
-  .team {
-    background: white;
-    padding: 10px;
-    margin: 10px auto;
-    border-radius: 8px;
-    max-width: 400px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-  .score {
-    font-size: 2em;
-    margin: 10px 0;
-  }
-  .buttons {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 5px;
-  }
-  button {
-    font-size: 1em;
-    padding: 10px 15px;
-    border: none;
-    border-radius: 5px;
-    background: #007bff;
-    color: white;
-    cursor: pointer;
-  }
-  button:hover {
-    background: #0056b3;
-  }
-  input {
-    padding: 8px;
-    font-size: 1em;
-  }
-</style>
+<link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
 
-<h1>Scoreboard</h1>
+<div class="view-selector">
+  <select id="viewSelector" onchange="changeView()">
+    <option value="scoreboard">Scoreboard View</option>
+    <option value="leaderboard">Leaderboard View</option>
+  </select>
+</div>
 
-<div>
-  <input id="teamName" placeholder="Enter team name">
-  <button onclick="addTeam()">Add Team</button>
+<div id="scoreboardView">
+  <h1>Scoreboard</h1>
+
+  <div>
+    <input id="teamName" placeholder="Enter team name">
+    <button onclick="addTeam()">Add Team</button>
+  </div>
+
+  <div class="global-controls">
+    <div class="reset-controls">
+      <button onclick="resetAllScores()" class="warning-button">Reset All Scores</button>
+      <button onclick="resetEntireScoreboard()" class="danger-button">Reset Entire Scoreboard</button>
+    </div>
+  </div>
+</div>
+
+<div id="leaderboardView" style="display: none;">
+  <h1>Leaderboard</h1>
+  
+  <div class="sort-controls">
+    <button onclick="sortTeams('desc')" class="active">Sort by Score ↓</button>
+    <button onclick="sortTeams('asc')">Sort by Score ↑</button>
+  </div>
+  
+  <div id="leaderboardTeams" class="leaderboard-container"></div>
 </div>
 
 <div id="teams"></div>
 
 <h3>Add Category Buttons</h3>
 <input id="categoryName" placeholder="Category name">
-<input id="categoryValue" type="number" placeholder="Points" style="width:80px">
+<input id="categoryValue" type="number" placeholder="Points" class="points-input" min="1" step="1">
+<select id="categorySign" class="sign-select" title="Sign">
+  <option value="+">+</option>
+  <option value="-">-</option>
+</select>
 <button onclick="addCategory()">Add Category</button>
+<button id="toggleCategoryEdit" class="category-edit-button" onclick="toggleCategoryEditMode()">Enable Category Edit</button>
 
-<div id="categories" style="margin-top: 10px;"></div>
+<div id="categories" class="categories-container"></div>
 
 <script>
 let teams = [];
 let categories = [];
+let categoryEditMode = false;
+
+function changeView() {
+  const view = document.getElementById('viewSelector').value;
+  document.getElementById('scoreboardView').style.display = view === 'scoreboard' ? 'block' : 'none';
+  document.getElementById('leaderboardView').style.display = view === 'leaderboard' ? 'block' : 'none';
+  
+  // Create teams container if it doesn't exist in scoreboard view
+  if (!document.getElementById('teams')) {
+    const teamsDiv = document.createElement('div');
+    teamsDiv.id = 'teams';
+    document.getElementById('scoreboardView').appendChild(teamsDiv);
+  }
+  
+  renderTeams();
+}
 
 function renderTeams() {
+  const currentView = document.getElementById('viewSelector').value;
+  
+  if (currentView === 'scoreboard') {
+    renderScoreboardView();
+  } else {
+    renderLeaderboardView();
+  }
+}
+
+function renderScoreboardView() {
   const container = document.getElementById('teams');
   container.innerHTML = '';
   teams.forEach((team, index) => {
     container.innerHTML += `
       <div class="team">
-        <h2>${team.name}</h2>
-        <div class="score">${team.score}</div>
+        <div class="team-header">
+          <div class="team-title" onclick="toggleTeamMembers(${index})">
+            <h2 style="color: ${team.color || '#000000'}">${team.name}</h2>
+            <span class="dropdown-arrow" id="arrow-${index}">▼</span>
+          </div>
+          <div class="team-controls">
+            <input 
+              type="color" 
+              value="${team.color || '#000000'}" 
+              onchange="updateTeamColor(${index}, this.value)"
+              class="color-picker"
+              title="Change team color"
+            >
+            <button class="delete-button" onclick="removeTeam(${index})">×</button>
+          </div>
+        </div>
+        <div class="score-container">
+          <div class="score">${team.score}</div>
+          <button class="reset-score-button" onclick="resetTeamScore(${index})" title="Reset team score">
+            <span class="reset-icon">↺</span>
+          </button>
+        </div>
         <div class="buttons">
-          ${categories.map(cat => 
-            `<button onclick="addScore(${index}, ${cat.value})">${cat.name} +${cat.value}</button>`
-          ).join('')}
-          <button style="background:#dc3545" onclick="addScore(${index}, -10)">-10</button>
+          ${categories.map(cat => {
+            const amt = (cat && cat.sign === '-') ? -cat.value : (cat ? cat.value : 0);
+            const labelSign = (cat && cat.sign === '-') ? '-' : '+';
+            return `<button onclick="addScore(${index}, ${amt})">${cat.name} ${labelSign}${cat.value}</button>`
+          }).join('')}
+          <button class="negative-points" onclick="addScore(${index}, -10)">-10</button>
+        </div>
+        <div class="team-members" id="members-${index}">
+          <div class="add-member-form">
+            <input id="memberInput-${index}" placeholder="Add team member">
+            <button onclick="addMember(${index})">Add</button>
+          </div>
+          <ul class="member-list">
+            ${(team.members || []).map((member, memberIndex) => 
+              `<li>
+                ${member}
+                <button class="delete-member-button" onclick="removeMember(${index}, ${memberIndex})">×</button>
+              </li>`
+            ).join('')}
+          </ul>
         </div>
       </div>
     `;
   });
 }
 
+function renderLeaderboardView() {
+  const container = document.getElementById('leaderboardTeams');
+  container.innerHTML = '';
+
+  if (teams.length === 0) {
+    container.innerHTML = '<div class="empty-leaderboard">No teams yet.</div>';
+    return;
+  }
+
+  // Create a sorted copy (highest score first)
+  const sorted = [...teams].sort((a, b) => b.score - a.score);
+
+  // Compute competition ranking: ties share the same rank, next rank skips accordingly (1,1,3)
+  const ranks = [];
+  let prevScore = null;
+  let rank = 0;
+  let itemsBefore = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    itemsBefore++;
+    if (sorted[i].score !== prevScore) {
+      rank = itemsBefore;
+      prevScore = sorted[i].score;
+    }
+    ranks.push(rank);
+  }
+
+  // Build Olympic-style table
+  const rows = sorted.map((team, i) => {
+    const r = ranks[i];
+    let medalClass = '';
+    if (r === 1) medalClass = 'gold';
+    else if (r === 2) medalClass = 'silver';
+    else if (r === 3) medalClass = 'bronze';
+
+    return `
+      <tr class="olympic-row ${medalClass}">
+        <td class="rank-cell">${r}</td>
+        <td class="team-cell" style="color: ${team.color || '#000000'}">${team.name}</td>
+        <td class="score-cell">${team.score}</td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="olympic-table">
+      <thead>
+        <tr><th>#</th><th>Team</th><th>Score</th></tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+  `;
+}
+
+function changeView() {
+  const view = document.getElementById('viewSelector').value;
+  document.getElementById('scoreboardView').style.display = view === 'scoreboard' ? 'block' : 'none';
+  document.getElementById('leaderboardView').style.display = view === 'leaderboard' ? 'block' : 'none';
+  renderTeams();
+}
+
 function addTeam() {
   const name = document.getElementById('teamName').value.trim();
   if (!name) return alert("Enter a team name!");
-  teams.push({ name, score: 0 });
+  teams.push({ name, score: 0, members: [], color: '#000000' });
   document.getElementById('teamName').value = '';
+  renderTeams();
+}
+
+function toggleTeamMembers(index) {
+  const membersDiv = document.getElementById(`members-${index}`);
+  const arrow = document.getElementById(`arrow-${index}`);
+  membersDiv.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+function addMember(teamIndex) {
+  const input = document.getElementById(`memberInput-${teamIndex}`);
+  const memberName = input.value.trim();
+  if (!memberName) return alert("Please enter a member name!");
+  
+  if (!teams[teamIndex].members) {
+    teams[teamIndex].members = [];
+  }
+  
+  teams[teamIndex].members.push(memberName);
+  input.value = '';
   renderTeams();
 }
 
 function addCategory() {
   const name = document.getElementById('categoryName').value.trim();
-  const value = parseInt(document.getElementById('categoryValue').value);
-  if (!name || isNaN(value)) return alert("Enter valid category name and points!");
-  categories.push({ name, value });
+  const value = parseInt(document.getElementById('categoryValue').value, 10);
+  const sign = document.getElementById('categorySign') ? document.getElementById('categorySign').value : '+';
+  if (!name || isNaN(value) || value <= 0) return alert("Enter valid category name and a positive points value!");
+  categories.push({ name, value, sign });
   renderCategories();
   renderTeams();
   document.getElementById('categoryName').value = '';
   document.getElementById('categoryValue').value = '';
+  if (document.getElementById('categorySign')) document.getElementById('categorySign').value = '+';
 }
 
 function renderCategories() {
   const container = document.getElementById('categories');
-  container.innerHTML = categories.map(cat => 
-    `<div>${cat.name} (+${cat.value})</div>`
-  ).join('');
+  if (!container) return;
+
+  if (categoryEditMode) {
+    container.innerHTML = categories.map((cat, i) => `
+      <div class="category-row">
+        <input id="catName-${i}" class="category-input" value="${cat.name}" onchange="updateCategory(${i})">
+        <input id="catValue-${i}" class="category-input points-input" type="number" min="1" step="1" value="${cat.value}" onchange="updateCategory(${i})">
+        <select id="catSign-${i}" class="sign-select" onchange="updateCategory(${i})">
+          <option value="+" ${!cat.sign || cat.sign === '+' ? 'selected' : ''}>+</option>
+          <option value="-" ${cat.sign === '-' ? 'selected' : ''}>-</option>
+        </select>
+        <button class="category-delete-button" onclick="deleteCategory(${i})">Delete</button>
+      </div>
+    `).join('');
+  } else {
+    container.innerHTML = categories.map(cat => 
+      `<div class="category-row">${cat.name} (${cat.sign || '+'}${cat.value})</div>`
+    ).join('');
+  }
+}
+
+function toggleCategoryEditMode() {
+  categoryEditMode = !categoryEditMode;
+  const btn = document.getElementById('toggleCategoryEdit');
+  if (btn) btn.textContent = categoryEditMode ? 'Disable Category Edit' : 'Enable Category Edit';
+  renderCategories();
+}
+
+function deleteCategory(index) {
+  if (!categories[index]) return;
+  if (confirm(`Delete category "${categories[index].name}"? This cannot be undone.`)) {
+    categories.splice(index, 1);
+    renderCategories();
+    renderTeams();
+  }
+}
+
+function updateCategory(index) {
+  const nameInput = document.getElementById(`catName-${index}`);
+  const valInput = document.getElementById(`catValue-${index}`);
+  const signSelect = document.getElementById(`catSign-${index}`);
+  if (!nameInput || !valInput || !signSelect) return;
+  const name = nameInput.value.trim();
+  const value = parseInt(valInput.value, 10);
+  const sign = signSelect.value === '-' ? '-' : '+';
+  if (!name || isNaN(value) || value <= 0) return; // don't update on invalid input
+  categories[index] = { name, value, sign };
+  renderCategories();
+  renderTeams();
 }
 
 function addScore(teamIndex, amount) {
   teams[teamIndex].score += amount;
+  renderTeams();
+}
+
+function removeTeam(index) {
+  if (confirm(`Are you sure you want to remove ${teams[index].name}?`)) {
+    teams.splice(index, 1);
+    renderTeams();
+  }
+}
+
+function removeMember(teamIndex, memberIndex) {
+  if (confirm(`Are you sure you want to remove ${teams[teamIndex].members[memberIndex]}?`)) {
+    teams[teamIndex].members.splice(memberIndex, 1);
+    renderTeams();
+  }
+}
+
+function updateTeamColor(index, color) {
+  teams[index].color = color;
+  renderTeams();
+}
+
+function resetTeamScore(index) {
+  if (confirm(`Are you sure you want to reset ${teams[index].name}'s score to 0?`)) {
+    teams[index].score = 0;
+    renderTeams();
+  }
+}
+
+function resetAllScores() {
+  if (confirm('Are you sure you want to reset ALL team scores to 0?')) {
+    teams.forEach(team => team.score = 0);
+    renderTeams();
+  }
+}
+
+function resetEntireScoreboard() {
+  if (confirm('Are you sure you want to remove ALL teams and reset the scoreboard?')) {
+    teams = [];
+    renderTeams();
+  }
+}
+
+function sortTeams(order) {
+  teams.sort((a, b) => {
+    if (order === 'asc') {
+      return a.score - b.score;
+    } else {
+      return b.score - a.score;
+    }
+  });
   renderTeams();
 }
 </script>
